@@ -1831,8 +1831,7 @@ class FilteredStream:
 
 
 class Producer(object):
-
-    """Generic producer"""
+    """Generic producer."""
 
     def __init__(self, worker, producer, continue_next=False):
         self.worker = worker
@@ -1840,7 +1839,13 @@ class Producer(object):
         self.continue_next = continue_next
 
     def __call__(self, *args, **kwargs):
-        result = self.producer(*args, **kwargs)
+        try:
+            result = self.producer(*args, **kwargs)
+        except Exception as exception:
+            if debug:
+                messages = traceback.format_exception(exception)
+                print("[D] Worker raised an unhandled exception: \n" + "\n".join(messages))
+            raise
         if not self.continue_next and self.worker._progress_wnd:
             if hasattr(
                 self.worker.progress_wnd, "animbmp"
@@ -1902,9 +1907,6 @@ class Sudo(object):
         return int(bool(self.sudo))
 
     def __str__(self):
-        return str(self.sudo or "")
-
-    def __unicode__(self):
         return str(self.sudo or "")
 
     def _expect_timeout(self, patterns, timeout=-1, child_timeout=1):
@@ -4022,7 +4024,7 @@ END_DATA
         filename, ext = os.path.splitext(path)
         name = os.path.basename(filename)
 
-        if profile_in.profileClass == "link":
+        if profile_in.profileClass == b"link":
             link_basename = os.path.basename(profile_in.fileName)
             link_filename = os.path.join(cwd, link_basename)
             profile_in.write(link_filename)
@@ -4715,8 +4717,8 @@ END_DATA
                 logfiles.write("\n")
                 logfiles.write("Filling cLUT...\n")
                 profile_link = ICCP.ICCProfile()
-                profile_link.profileClass = "link"
-                profile_link.connectionColorSpace = "RGB"
+                profile_link.profileClass = b"link"
+                profile_link.connectionColorSpace = b"RGB"
                 profile_link.setDescription(name)
                 profile_link.setCopyright(getcfg("copyright"))
                 profile_link.tags.pseq = ICCP.ProfileSequenceDescType(

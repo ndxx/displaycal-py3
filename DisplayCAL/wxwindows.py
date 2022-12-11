@@ -472,7 +472,7 @@ class AuiBetterTabArt(AuiDefaultTabArt):
             dc.DrawPoint(r.x + r.width - 2, r.y + 1)
 
             # set rectangle down a bit for gradient drawing
-            r.SetHeight(r.GetHeight() / 2)
+            r.SetHeight(int(r.GetHeight() / 2))
             r.x += 2
             r.width -= 3
             r.y += r.height
@@ -495,7 +495,7 @@ class AuiBetterTabArt(AuiDefaultTabArt):
             r.x += 2
             r.y += 1
             r.width -= 3
-            r.height /= 2
+            r.height = int(r.height / 2)
 
             # -- draw top gradient fill for glossy look
             top_colour = self._tab_inactive_top_colour
@@ -555,7 +555,7 @@ class AuiBetterTabArt(AuiDefaultTabArt):
             dc.DrawBitmap(
                 pagebitmap,
                 bitmap_offset,
-                drawn_tab_yoff + (drawn_tab_height / 2) - (pagebitmap.GetHeight() / 2),
+                drawn_tab_yoff + int(drawn_tab_height / 2) - int(pagebitmap.GetHeight() / 2),
                 True,
             )
 
@@ -571,7 +571,7 @@ class AuiBetterTabArt(AuiDefaultTabArt):
             dc, caption, tab_width - (text_offset - tab_x) - close_button_width
         )
 
-        ypos = drawn_tab_yoff + (drawn_tab_height) / 2 - (texty / 2) - 1
+        ypos = drawn_tab_yoff + int(drawn_tab_height / 2) - int(texty / 2) - 1
 
         offset_focus = text_offset
 
@@ -639,14 +639,14 @@ class AuiBetterTabArt(AuiDefaultTabArt):
             if agwFlags & aui.AUI_NB_CLOSE_ON_TAB_LEFT:
                 rect = wx.Rect(
                     tab_x + 4,
-                    tab_y + (tab_height - bmp.GetHeight()) / 2 - shift,
+                    tab_y + int((tab_height - bmp.GetHeight()) / 2 - shift),
                     close_button_width,
                     tab_height,
                 )
             else:
                 rect = wx.Rect(
                     tab_x + tab_width - close_button_width - 1,
-                    tab_y + (tab_height - bmp.GetHeight()) / 2 - shift,
+                    tab_y + int((tab_height - bmp.GetHeight()) / 2 - shift),
                     close_button_width,
                     tab_height,
                 )
@@ -2523,7 +2523,7 @@ class BaseInteractiveDialog(wx.Dialog):
                     base_appid + "-vrml-to-x3d-converter": "vrml_to_x3d_converter",
                 }
                 title = lang.getstr(appid2title.get(appid, "window.title"))
-        scale = getcfg("app.dpi") / get_default_dpi()
+        scale = int(getcfg("app.dpi") / get_default_dpi())
         if scale > 1 and size == (400, -1):
             size = size[0] * scale, size[1]
         wx.Dialog.__init__(self, parent, id, title, pos, size, style, name)

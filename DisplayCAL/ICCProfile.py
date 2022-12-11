@@ -1,12 +1,8 @@
 # -*- coding: utf-8 -*-
-import functools
-from copy import copy
-from hashlib import md5
-import atexit
 import binascii
 import ctypes
 import datetime
-import locale
+import json
 import math
 import os
 import pathlib
@@ -14,10 +10,10 @@ import re
 import struct
 import sys
 import warnings
-import zlib
-
-from time import localtime, mktime, strftime
 from collections import UserString
+from copy import copy
+from hashlib import md5
+from time import strftime
 from weakref import WeakValueDictionary
 
 from DisplayCAL.util_dict import dict_sort
@@ -58,9 +54,7 @@ from DisplayCAL.colormath import NumberTuple
 from DisplayCAL.defaultpaths import iccprofiles, iccprofiles_home
 from DisplayCAL.encoding import get_encodings
 from DisplayCAL.options import test_input_curve_clipping
-from DisplayCAL.util_decimal import float2dec
 from DisplayCAL.util_list import intlist
-from DisplayCAL.util_str import hexunescape
 
 if sys.platform not in ("darwin", "win32"):
     from DisplayCAL.defaultpaths import xdg_config_dirs, xdg_config_home
@@ -3824,9 +3818,9 @@ BEGIN_DATA
 
 
 class Observer(ADict):
-    def __init__(self, binaryString):
-        super(ADict, self).__init__(binaryString)
-        self.type = uInt32Number(binaryString)
+    def __init__(self, bytes_data):
+        super(ADict, self).__init__()
+        self.type = uInt32Number(bytes_data)
         self.description = observers[self.type]
 
 
@@ -4427,7 +4421,7 @@ class ParametricCurveType(ICCProfileTag):
         for i, param in enumerate("gabcdef"[:numparams]):
             self.params[param] = s15Fixed16Number(tagData[12 + i * 4 : 12 + i * 4 + 4])
 
-    def apply(self, v):
+    def __apply(self, v):
         if len(self.params) == 1:
             return v ** self.params["g"]
         elif len(self.params) == 3:
@@ -4461,6 +4455,10 @@ class ParametricCurveType(ICCProfileTag):
             raise NotImplementedError(
                 "Invalid number of parameters: %i" % len(self.params)
             )
+
+    def apply(self, v):
+        # clip result to [0, 1]
+        return max(0, min(self.__apply(v), 1))
 
     def get_trc(self, size=1024):
         curv = CurveType(profile=self.profile)
@@ -4702,27 +4700,28 @@ class DictType(ICCProfileTag, AODict):
         Display names/values are used if present.
 
         """
-        json = []
-        for name in self:
-            value = self.getvalue(name, None, locale)
-            name = self.getname(name, None, locale)
-            # try:
-            # value = str(int(value))
-            # except ValueError:
-            # try:
-            # value = str(float(value))
-            # except ValueError:
+        return DictTypeJSONEncoder(locale=locale).encode(self)
+
+
+class DictTypeJSONEncoder(json.JSONEncoder):
+    """JSON Encoder for the DictType class."""
+
+    def __init__(self, *args, **kwargs):
+        self.locale = kwargs.pop("locale") or "en_US"
+        super().__init__(*args, **kwargs)
+
+    def default(self, obj):
+        return_data = {}
+        regex = re.compile(r"\\x([0-9a-f]{2})")
+        repl_str = r"\\u00\1"
+        for name in obj:
+            value = obj.getvalue(name, None, self.locale)
+            name = obj.getname(name, None, self.locale)
             value = '"%s"' % repr(str(value))[2:-1].replace('"', '\\"')
-            json.append(
-                '"%s": %s'
-                % tuple(
-                    [
-                        re.sub(r"\\x([0-9a-f]{2})", "\\u00\\1", item)
-                        for item in [repr(str(name))[2:-1], value]
-                    ]
-                )
-            )
-        return "{%s}" % ",\n".join(json)
+            name = regex.sub(repl_str, name)
+            value = regex.sub(repl_str, value)
+            return_data[name] = value
+        return return_data
 
 
 class MakeAndModelType(ICCProfileTag, ADict):
@@ -4734,6 +4733,9 @@ class MakeAndModelType(ICCProfileTag, ADict):
 class MeasurementType(ICCProfileTag, ADict):
     def __init__(self, tagData, tagSignature):
         ICCProfileTag.__init__(self, tagData, tagSignature)
+
+        print(f"tagData[8:12]: {tagData[8:12]}")
+
         self.update(
             {
                 "observer": Observer(tagData[8:12]),
@@ -4781,19 +4783,16 @@ class MultiLocalizedUnicodeType(ICCProfileTag, AODict):  # ICC v4
             records = records[recordSize:]
 
     def __str__(self):
-        return str(self).encode(sys.getdefaultencoding())
-
-    def __unicode__(self):
         """Return tag as string."""
         # TODO: Needs some work re locales
         # (currently if en-UK or en-US is not found, simply the first entry
         # is returned)
-        if "en" in self:
-            for countryCode in ("UK", "US"):
-                if countryCode in self["en"]:
-                    return self["en"][countryCode]
-            if self["en"]:
-                return list(self["en"].values())[0]
+        if b"en" in self:
+            for countryCode in (b"UK", b"US"):
+                if countryCode in self[b"en"]:
+                    return self[b"en"][countryCode]
+            if self[b"en"]:
+                return list(self[b"en"].values())[0]
             return ""
         elif len(self):
             return list(list(self.values())[0].values())[0]
@@ -4898,7 +4897,7 @@ class ProfileSequenceDescType(ICCProfileTag, list):
         """Add description structure of profile"""
         desc = {}
         desc.update(profile.device)
-        desc["tech"] = profile.tags.get("tech", "").ljust(4, "\0")[:4]
+        desc["tech"] = profile.tags.get("tech", b"").ljust(4, b"\0")[:4]
         for desc_type in ("dmnd", "dmdd"):
             if self.profile.version >= 4:
                 cls = MultiLocalizedUnicodeType
@@ -7458,6 +7457,7 @@ class ICCProfile(object):
                                 "%6.4f" % v for v in colormath.XYZ2xyY(*values)[:2]
                             )
                         )
+                    colorant_name = colorant_name.decode()
                     info[
                         "    %s %s" % (colorant_name, "".join(list(colorant.keys())))
                     ] = " ".join(XYZxy)
@@ -7633,10 +7633,10 @@ class ICCProfile(object):
                     countries = tag[language]
                     for country in countries:
                         value = countries[country]
-                        if isinstance(country, bytes):
-                            country = country.decode("utf-8")
+                        country = country.decode()
                         if country.strip("\0 "):
                             country = "/" + country
+                        language = language.decode()
                         info["    %s%s" % (language, country)] = value
             elif isinstance(tag, NamedColor2Type):
                 info[name] = ""

@@ -2,6 +2,7 @@
 """Tests for the DisplayCAL.ICCProfile module."""
 import binascii
 import datetime
+import sys
 from time import strftime
 
 from DisplayCAL import ICCProfile, colormath
@@ -16,6 +17,7 @@ from DisplayCAL.ICCProfile import (
     dateTimeNumber,
     ICCProfileTag,
     Text,
+    MultiLocalizedUnicodeType, Observer,
 )
 
 
@@ -36,7 +38,7 @@ def test_iccprofile_from_rgb_space():
         ["Color model", "RGB"],
         ["Profile connection space (PCS)", "XYZ"],
         ["Created", "2022-03-09 00:19:53"],
-        ["Platform", "0x2A6E6978 '*nix'"],
+        ["Platform", "Apple"] if sys.platform == "darwin" else ["Platform", "0x2A6E6978 '*nix'"],
         ["Is embedded", "No"],
         ["Can be used independently", "Yes"],
         ["Device", ""],
@@ -177,7 +179,7 @@ def test_iccprofile_get_info():
         ["Color model", "RGB"],
         ["Profile connection space (PCS)", "XYZ"],
         ["Created", "2022-02-14 02:44:22"],
-        ["Platform", "0x2A6E6978 '*nix'"],
+        ["Platform", "Apple"] if sys.platform == "darwin" else ["Platform", "0x2A6E6978 '*nix'"],
         ["Is embedded", "No"],
         ["Can be used independently", "Yes"],
         ["Device", ""],
@@ -561,9 +563,9 @@ def test_for_issue_31_2(data_files):
         ["        ΔE 2000 to daylight locus", "1.32"],
         ["        ΔE 2000 to blackbody locus", "5.68"],
         ["Colorants (PCS-relative)", ""],
-        ["    b'Red' XYZ", " 61.86  31.08   1.65 (xy 0.6539 0.3286)"],
-        ["    b'Green' XYZ", " 20.25  62.90   5.88 (xy 0.2275 0.7065)"],
-        ["    b'Blue' XYZ", " 14.58   6.30  75.18 (xy 0.1518 0.0656)"],
+        ["    Red XYZ", " 61.86  31.08   1.65 (xy 0.6539 0.3286)"],
+        ["    Green XYZ", " 20.25  62.90   5.88 (xy 0.2275 0.7065)"],
+        ["    Blue XYZ", " 14.58   6.30  75.18 (xy 0.1518 0.0656)"],
         ["Video card gamma table", ""],
         ["    Bitdepth", "16"],
         ["    Channels", "3"],
@@ -657,7 +659,7 @@ def test_for_issue_31_3(data_files):
         ["    ASCII", "SW271 PM PenalNative_KB1_160_2022-03-17"],
         ["    Macintosh", "SW271 PM PenalNative_KB1_160_2022-03-17"],
         ["'dscm'", ""],
-        ["    b'en'/US", ""],
+        ["    en/US", ""],
         ["Characterization target", "[5938 Bytes]"],
         [
             "Copyright",
@@ -806,3 +808,30 @@ def test_set_gamut_metadata_1(data_files):
     assert iccp.tags.meta["GAMUT_coverage(srgb)"] == gamut_coverage['srgb']
     assert iccp.tags.meta["GAMUT_coverage(dci-p3)"] == gamut_coverage['dci-p3']
     assert iccp.tags.meta["GAMUT_coverage(adobe-rgb)"] == gamut_coverage['adobe-rgb']
+
+
+def test_MultiLocalizedUnicodeType_str_method(data_files):
+    """Test for #151."""
+    mlut = MultiLocalizedUnicodeType()
+    assert str(mlut) == ""
+
+
+def test_dict_type_to_json():
+    """Test DictType.to_json() method."""
+    d = DictType()
+    d.update(
+        {
+            "\xab": "\x00",
+            "\xaf": "\x12",
+        }
+    )
+    expected_result = '{"\\u00ab": "\\u0000", "\\u00af": "\\u0012"}'
+    assert d.to_json() == expected_result
+
+
+def test_issue_185_parsing_of_ref_srgb_profile_from_argyllcms(argyll):
+    """Testing for issue #185, opening sRGB.icm from ArgyllCMS raises TypeError."""
+    srgb_profile_path = argyll / ".." / "ref" / "sRGB.icm"
+    icc_profile = ICCProfile.ICCProfile(srgb_profile_path)
+    # the following should not raise an error
+    info = icc_profile.get_info()

@@ -25,7 +25,7 @@ Here is a screenshots showing the tool working with Python 3.10:
 
 ![image](https://user-images.githubusercontent.com/1786804/169152229-e06ff549-55fe-4149-8742-405446e6b01f.png)
 
-Currently, DisplayCAL is working with Python 3.8, 3.9 and 3.10 and wxPython 4.1.1.
+Currently, DisplayCAL is working with Python 3.8, 3.9 and 3.10 and wxPython 4.1.1 or 4.2.0.
 
 Here is a list of things that is working:
 
@@ -70,8 +70,8 @@ Prerequisites:
 Please install these from your package manager. 
 
 ```shell
-# Brew on Macs
-brew install pkg-config dbus glib gtk+3
+# Brew on MacOS
+brew install glib gtk+3 python@3.10
 
 # Debian installs
 apt-get install build-essential dbus libglib2.0-dev pkg-config libgtk-3-dev libxxf86vm-dev
@@ -109,15 +109,6 @@ This should install DisplayCAL. To run the UI:
 ```shell
 displaycal
 ```
-
-ATTENTION!
-----------
-
-Previously the ``--install-data=$HOME/.local`` option has to be used with the
-``setup.py`` script in order to let the DisplayCAL to find the required data files. But
-it is not needed anymore, and it is a good idea to delete the ``DisplayCAL*`` files and
-folders from the ``site-packages`` folder of your ``python`` interpreter if you used
-that option in a previous version of ``DisplayCAL-py3``.
 
 Road Map
 --------
